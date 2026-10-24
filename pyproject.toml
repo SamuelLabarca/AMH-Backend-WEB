@@ -1,0 +1,18 @@
+[project]
+name = "amh-api"
+version = "0.1.0"
+description = "API del portal de pagos de My Business Panel (AMH Solutions)"
+requires-python = ">=3.13"
+dependencies = [
+    "argon2-cffi>=25.1.0",
+    "dj-database-url>=3.1.2",
+    "django>=5.2,<5.3",
+    "django-cors-headers>=4.9.0",
+    "djangorestframework>=3.18.3",
+    "psycopg[binary]>=3.3.6",
+    "python-dotenv>=1.2.4",
+]
+
+# Es una aplicación Django, no una librería: uv no tiene que empaquetarla.
+[tool.uv]
+package = false
