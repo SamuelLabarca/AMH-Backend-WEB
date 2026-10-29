@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "tienda",
     "suscripciones",
     "pagos",
+    "notificaciones",
 ]
 
 MIDDLEWARE = [
@@ -161,10 +162,15 @@ CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"
 
 # ---------------------------------------------------------------------------
 # CORREO
-# En desarrollo se imprime en la consola. En producción, SMTP de Resend
-# (smtp.resend.com, usuario "resend", contraseña = API key) o de Brevo.
+# En desarrollo (DEBUG=true) cada correo se guarda en la BANDEJA LOCAL y se
+# lee en /admin → "Bandeja de correos", con sus enlaces listos para abrir.
+# En producción, SMTP de Resend (smtp.resend.com, usuario "resend",
+# contraseña = API key) o de Brevo. EMAIL_BACKEND en el .env manda sobre
+# las dos (p. ej. el de consola, si alguien lo prefiere).
 # ---------------------------------------------------------------------------
-EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND") or (
+    "notificaciones.correo.BandejaLocal" if DEBUG else "django.core.mail.backends.smtp.EmailBackend"
+)
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
 EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")

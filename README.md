@@ -17,10 +17,15 @@ uv run python manage.py runserver         # http://localhost:8000
 uv run python manage.py test
 ```
 
-En el frontend, `VITE_API_URL=http://localhost:8000` en su `.env` y el
-portal deja el modo demostración.
+En el frontend, `npm run dev:api` (usa `VITE_API_URL=http://localhost:8000`)
+y el portal deja el modo demostración.
 
-## Las tres apps
+**Los correos en local** no se envían: van a la bandeja de desarrollo, en
+`/admin` → **Bandeja de correos (local)**. Ahí se ve, por ejemplo, el enlace
+de recuperación de contraseña, listo para abrir. En producción salen por SMTP
+(ver `.env.example`).
+
+## Las apps
 
 | App | Qué hace |
 |---|---|
@@ -29,6 +34,7 @@ portal deja el modo demostración.
 | `tienda` | Órdenes: la compra guarda el precio del momento y crea la suscripción `pendiente`; aprobar su pago la deja `pagada` |
 | `suscripciones` | Los planes de cada usuario y su estado (`GET /portal/cuenta`) |
 | `pagos` | Métodos de cobro, tasa BCV y reportes de pago; el equipo aprueba en `/admin` y eso renueva las suscripciones |
+| `notificaciones` | Correos. En desarrollo, la bandeja local (`notificaciones.correo.BandejaLocal`) |
 
 **Lo que se edita en el admin sin publicar la web:** precios y opciones
 (Catálogo → Productos), datos de cobro y métodos activos (Pagos → Métodos de
@@ -36,8 +42,8 @@ cobro) y la tasa BCV del día (Pagos → Tasas de cambio). Sin una tasa cargada,
 `/pagos/tasa` responde 404 y el portal no puede convertir a bolívares.
 
 La lógica de negocio vive en `servicios.py` de cada app, no en las vistas
-ni en el admin: aprobar un pago desde el admin, desde un webhook de Celebry
-o desde un test pasa por la misma función (`pagos.servicios.aprobar`).
+ni en el admin: aprobar un pago desde el admin, desde un webhook de
+PagoFlash o desde un test pasa por la misma función (`pagos.servicios.aprobar`).
 
 ## Contrato
 
