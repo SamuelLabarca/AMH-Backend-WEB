@@ -1,6 +1,47 @@
+"""Las reglas de las suscripciones. Las otras apps (tienda, pagos) llaman
+a estas funciones en vez de leer o escribir el modelo Suscripcion: así,
+"cuándo se puede pagar" o "cómo nace una suscripción" se lee en un solo
+archivo."""
+
 from django.utils import timezone
 
 from .models import Suscripcion
+
+
+def crear_pendiente(usuario, *, producto, plan, ciclo, monto):
+    """Una suscripción recién comprada: existe, pero no da acceso hasta que
+    se apruebe su pago (ver renovar)."""
+    return Suscripcion.objects.create(
+        usuario=usuario,
+        producto=producto,
+        plan=plan,
+        ciclo=ciclo,
+        monto=monto,
+        estado=Suscripcion.Estado.PENDIENTE,
+    )
+
+
+def cancelar_pendiente(suscripcion):
+    """Cancela una suscripción que nunca se pagó. Si ya está activa (se
+    pagó) no la toca: cancelar una compra no puede quitar un acceso pagado."""
+    if suscripcion.estado != Suscripcion.Estado.PENDIENTE:
+        return False
+    suscripcion.estado = Suscripcion.Estado.CANCELADA
+    suscripcion.save(update_fields=["estado"])
+    return True
+
+
+def pagables(usuario, ids):
+    """Las suscripciones de `usuario` con esos ids que se pueden pagar, o
+    None si alguna no existe, no es suya o está cancelada.
+
+    Todo o nada a propósito: quien llama no debe saber CUÁL falló, para no
+    confirmar que existe una suscripción ajena con ese id."""
+    ids = set(ids)
+    encontradas = list(
+        usuario.suscripciones.filter(pk__in=ids).exclude(estado=Suscripcion.Estado.CANCELADA)
+    )
+    return encontradas if len(encontradas) == len(ids) else None
 
 
 def sumar_meses(fecha, meses):

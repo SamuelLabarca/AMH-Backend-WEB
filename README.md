@@ -41,9 +41,34 @@ de recuperación de contraseña, listo para abrir. En producción salen por SMTP
 cobro) y la tasa BCV del día (Pagos → Tasas de cambio). Sin una tasa cargada,
 `/pagos/tasa` responde 404 y el portal no puede convertir a bolívares.
 
-La lógica de negocio vive en `servicios.py` de cada app, no en las vistas
-ni en el admin: aprobar un pago desde el admin, desde un webhook de
-PagoFlash o desde un test pasa por la misma función (`pagos.servicios.aprobar`).
+## Las capas de cada app
+
+Todas las apps tienen los mismos archivos, con el mismo papel:
+
+| Archivo | Capa | Pregunta que responde |
+|---|---|---|
+| `models.py` | Datos | ¿Qué se guarda? |
+| `servicios.py` | **Reglas de negocio** | ¿Qué pasa cuando…? (aprobar un pago, crear una orden) |
+| `views.py` | Entrada HTTP | ¿Qué recibe y qué responde la API? |
+| `admin.py` | Pantalla interna | ¿Qué ve y qué hace el equipo? |
+| `tests.py` | Pruebas | ¿Cómo sé que funciona? |
+
+**Reglas:**
+
+1. **Las vistas y el admin no deciden nada**: llaman a `servicios.py`. Por eso
+   aprobar un pago desde el admin, desde un webhook de PagoFlash o desde un test
+   pasa por la misma función (`pagos.servicios.aprobar`).
+2. **Una app habla con otra SOLO por su `servicios.py`**, nunca leyendo o
+   escribiendo sus modelos. Ejemplo: la tienda no crea una `Suscripcion`, llama a
+   `suscripciones.servicios.crear_pendiente()`. Así cada regla ("qué se puede
+   pagar", "qué se vende") se lee en un único archivo.
+
+   Se importa con un alias que dice de dónde viene:
+   `from suscripciones import servicios as suscripciones`.
+
+   Única excepción: `catalogo/models.py` usa `Suscripcion.Ciclo` (mensual,
+   trimestral, anual), que es una lista de valores sin lógica. Los tests y las
+   migraciones también pueden usar modelos ajenos para preparar datos.
 
 ## Contrato
 
