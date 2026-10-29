@@ -23,6 +23,7 @@ class Suscripcion(models.Model):
 
     class Ciclo(models.IntegerChoices):
         MENSUAL = 1, "Mensual"
+        TRIMESTRAL = 3, "Trimestral"
         ANUAL = 12, "Anual"
 
     # Cuántos días antes del vencimiento se avisa "por vencer".

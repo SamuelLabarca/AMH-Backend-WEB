@@ -25,8 +25,14 @@ portal deja el modo demostración.
 | App | Qué hace |
 |---|---|
 | `cuentas` | Usuario (se entra con correo), sesión, registro y recuperación de contraseña |
+| `catalogo` | Productos y opciones de pago (anual, trimestral, mensual) con su precio. Se editan en `/admin` |
 | `suscripciones` | Los planes de cada usuario y su estado (`GET /portal/cuenta`) |
-| `pagos` | El cliente reporta un pago; el equipo lo aprueba en `/admin` y eso renueva las suscripciones |
+| `pagos` | Métodos de cobro, tasa BCV y reportes de pago; el equipo aprueba en `/admin` y eso renueva las suscripciones |
+
+**Lo que se edita en el admin sin publicar la web:** precios y opciones
+(Catálogo → Productos), datos de cobro y métodos activos (Pagos → Métodos de
+cobro) y la tasa BCV del día (Pagos → Tasas de cambio). Sin una tasa cargada,
+`/pagos/tasa` responde 404 y el portal no puede convertir a bolívares.
 
 La lógica de negocio vive en `servicios.py` de cada app, no en las vistas
 ni en el admin: aprobar un pago desde el admin, desde un webhook de Celebry
@@ -44,7 +50,10 @@ o desde un test pasa por la misma función (`pagos.servicios.aprobar`).
 | POST | `/auth/recuperacion` | `{ correo }` → 202 siempre |
 | POST | `/auth/recuperacion/confirmar` | `{ token, contrasena }` → 204 · 400 `token-invalido` |
 | GET | `/portal/cuenta` | `{ suscripciones: [...] }` |
-| POST | `/portal/pagos` | `{ metodo, referencia, fecha, monto, banco, suscripciones }` → 201 · 409 `referencia-usada` |
+| POST | `/portal/pagos` | `{ metodo, referencia, fecha, monto, banco, suscripciones }` → 201 · 409 `referencia-usada` · 400 `metodo-no-disponible` |
+| GET | `/tienda/catalogo` | `{ productos: [{ codigo, nombre, marca, iva, opciones: [{ codigo, nombre, meses, precio, destacado }] }] }` (público) |
+| GET | `/pagos/metodos` | `{ metodos: [{ id, nombre, moneda, datos: [{ etiqueta, valor }] }] }` (público) |
+| GET | `/pagos/tasa` | `{ fecha, bs_por_usd }` · 404 `sin-tasa` (público) |
 
 Errores siempre como `{ codigo, mensaje }`.
 

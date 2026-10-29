@@ -3,11 +3,18 @@ from django.utils import timezone
 
 from suscripciones.servicios import renovar
 
-from .models import ReportePago
+from .models import ReportePago, TasaCambio
 
 
 class PagoYaRevisado(Exception):
     """Se intentó aprobar o rechazar un pago que ya no está pendiente."""
+
+
+def tasa_vigente(fecha=None):
+    """La tasa BCV que vale en `fecha` (hoy, si no se indica): la última
+    cargada en ese día o antes. None si todavía no hay ninguna."""
+    fecha = fecha or timezone.localdate()
+    return TasaCambio.objects.filter(fecha__lte=fecha).order_by("-fecha").first()
 
 
 @transaction.atomic

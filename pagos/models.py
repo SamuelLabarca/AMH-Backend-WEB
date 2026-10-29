@@ -22,8 +22,6 @@ class ReportePago(models.Model):
         APROBADO = "aprobado", "Aprobado"
         RECHAZADO = "rechazado", "Rechazado"
 
-    MONEDA = {Metodo.PAGO_MOVIL: "Bs", Metodo.TRANSFERENCIA: "Bs", Metodo.ZELLE: "USD"}
-
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="pagos")
     suscripciones = models.ManyToManyField("suscripciones.Suscripcion", related_name="pagos")
     metodo = models.CharField(max_length=16, choices=Metodo.choices)
@@ -33,8 +31,9 @@ class ReportePago(models.Model):
     monto = models.DecimalField("monto pagado", max_digits=14, decimal_places=2)
     moneda = models.CharField(max_length=3)
     total_usd = models.DecimalField("total de los planes (USD)", max_digits=10, decimal_places=2)
-    # La tasa BCV con la que se verificó un pago en bolívares. La pone quien
-    # aprueba: sin ella no se puede conciliar ese pago meses después.
+    # La tasa BCV de un pago en bolívares. Se copia la vigente al reportar
+    # y quien aprueba puede corregirla: sin ella no se puede conciliar ese
+    # pago meses después.
     tasa_bcv = models.DecimalField("tasa BCV", max_digits=12, decimal_places=4, null=True, blank=True)
 
     estado = models.CharField(max_length=10, choices=Estado.choices, default=Estado.PENDIENTE)
@@ -57,3 +56,73 @@ class ReportePago(models.Model):
 
     def __str__(self):
         return f"{self.get_metodo_display()} {self.referencia} · {self.usuario.nombre}"
+
+
+class MetodoPago(models.Model):
+    """A dónde paga el cliente: los datos de cobro que ve en el último paso.
+
+    Viven aquí y no en el código del frontend para cambiarlos desde el
+    admin (otra cuenta, otro teléfono) sin publicar la web de nuevo, y
+    para apagar un método sin tocar nada más."""
+
+    class Moneda(models.TextChoices):
+        BOLIVARES = "Bs", "Bolívares"
+        DOLARES = "USD", "Dólares"
+
+    codigo = models.CharField(max_length=16, choices=ReportePago.Metodo.choices, unique=True)
+    nombre = models.CharField(max_length=40)
+    moneda = models.CharField(max_length=3, choices=Moneda.choices)
+    activo = models.BooleanField(default=True, help_text="Apagado deja de ofrecerse y de aceptarse en reportes nuevos.")
+    orden = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        verbose_name = "método de cobro"
+        verbose_name_plural = "métodos de cobro"
+        ordering = ["orden", "id"]
+
+    def __str__(self):
+        return self.nombre
+
+
+class DatoCobro(models.Model):
+    """Un renglón de los datos de cobro: "Banco: Banesco", "Teléfono: …".
+    Vacío se muestra como "Por confirmar"."""
+
+    metodo = models.ForeignKey(MetodoPago, on_delete=models.CASCADE, related_name="datos")
+    etiqueta = models.CharField(max_length=40)
+    valor = models.CharField(max_length=120, blank=True)
+    orden = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        verbose_name = "dato de cobro"
+        verbose_name_plural = "datos de cobro"
+        ordering = ["orden", "id"]
+
+    def __str__(self):
+        return f"{self.etiqueta}: {self.valor or 'por confirmar'}"
+
+
+class TasaCambio(models.Model):
+    """La tasa oficial del BCV (bolívares por dólar) de un día.
+
+    Se carga a mano desde el admin; más adelante, un comando diario podrá
+    traerla sola. Vale la ÚLTIMA cargada con fecha de hoy o anterior: si
+    un día nadie la carga, sigue valiendo la del día hábil anterior, que
+    es exactamente cómo publica el BCV."""
+
+    fecha = models.DateField(unique=True)
+    bs_por_usd = models.DecimalField("Bs por USD", max_digits=12, decimal_places=4)
+    fuente = models.CharField(max_length=40, default="BCV (manual)")
+    registrada_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    creada = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "tasa de cambio"
+        verbose_name_plural = "tasas de cambio"
+        ordering = ["-fecha"]
+        constraints = [models.CheckConstraint(condition=models.Q(bs_por_usd__gt=0), name="tasa_positiva")]
+
+    def __str__(self):
+        return f"{self.fecha}: Bs {self.bs_por_usd}"

@@ -84,3 +84,76 @@ class AprobarTests(Base):
         servicios.rechazar(ReportePago.objects.get().pk, self.equipo, "No aparece en el banco")
         self.sus.refresh_from_db()
         self.assertEqual(self.sus.estado, "pendiente")
+
+
+class MetodosTests(TestCase):
+    """La migración 0003 cargó los tres métodos con sus datos vacíos."""
+
+    def test_publicos_con_datos_por_confirmar(self):
+        r = APIClient().get("/pagos/metodos")
+        self.assertEqual(r.status_code, 200)
+        metodos = r.json()["metodos"]
+        self.assertEqual([m["id"] for m in metodos], ["pago-movil", "transferencia", "zelle"])
+        self.assertEqual(metodos[2]["moneda"], "USD")
+        self.assertIsNone(metodos[0]["datos"][0]["valor"])  # el frontend pinta "Por confirmar"
+
+    def test_un_dato_cargado_en_el_admin_se_publica(self):
+        from .models import DatoCobro
+
+        DatoCobro.objects.filter(metodo__codigo="zelle", etiqueta="Correo").update(valor="pagos@amh.com")
+        zelle = APIClient().get("/pagos/metodos").json()["metodos"][2]
+        self.assertEqual(zelle["datos"][0], {"etiqueta": "Correo", "valor": "pagos@amh.com"})
+
+    def test_apagado_no_se_ofrece(self):
+        from .models import MetodoPago
+
+        MetodoPago.objects.filter(codigo="transferencia").update(activo=False)
+        ids = [m["id"] for m in APIClient().get("/pagos/metodos").json()["metodos"]]
+        self.assertNotIn("transferencia", ids)
+
+
+class TasaTests(TestCase):
+    def setUp(self):
+        from .models import TasaCambio
+
+        self.Tasa = TasaCambio
+        self.hoy = timezone.localdate()
+
+    def test_sin_tasa_cargada_responde_404(self):
+        r = APIClient().get("/pagos/tasa")
+        self.assertEqual((r.status_code, r.json()["codigo"]), (404, "sin-tasa"))
+
+    def test_vale_la_ultima_cargada_hasta_hoy(self):
+        self.Tasa.objects.create(fecha=self.hoy - timedelta(days=3), bs_por_usd=Decimal("39.5"))
+        self.Tasa.objects.create(fecha=self.hoy - timedelta(days=1), bs_por_usd=Decimal("40.25"))
+        self.Tasa.objects.create(fecha=self.hoy + timedelta(days=1), bs_por_usd=Decimal("99"))  # futura: no vale
+        self.assertEqual(APIClient().get("/pagos/tasa").json()["bs_por_usd"], 40.25)
+
+    def test_el_reporte_en_bolivares_guarda_la_tasa_del_dia_del_pago(self):
+        self.Tasa.objects.create(fecha=self.hoy - timedelta(days=5), bs_por_usd=Decimal("38"))
+        self.Tasa.objects.create(fecha=self.hoy, bs_por_usd=Decimal("41"))
+        u = Usuario.objects.create_user("t@demo.com", "Segura123", nombre="T", documento="V-22222222")
+        s = Suscripcion.objects.create(usuario=u, plan="P", monto=Decimal("100"))
+        api = APIClient()
+        api.force_authenticate(u)
+        hace_3 = str(self.hoy - timedelta(days=3))
+        api.post(
+            "/portal/pagos",
+            {"metodo": "pago-movil", "referencia": "5555", "fecha": hace_3, "monto": "3800", "suscripciones": [s.id]},
+            format="json",
+        )
+        self.assertEqual(ReportePago.objects.get().tasa_bcv, Decimal("38"))
+
+
+class MetodoApagadoTests(Base):
+    def test_no_acepta_reportes_de_un_metodo_apagado(self):
+        from .models import MetodoPago
+
+        MetodoPago.objects.filter(codigo="zelle").update(activo=False)
+        r = self.reportar(metodo="zelle")
+        self.assertEqual((r.status_code, r.json()["codigo"]), (400, "metodo-no-disponible"))
+
+    def test_zelle_guarda_dolares_y_sin_tasa(self):
+        self.reportar(metodo="zelle", monto="45")
+        pago = ReportePago.objects.get()
+        self.assertEqual((pago.moneda, pago.tasa_bcv), ("USD", None))

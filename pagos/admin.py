@@ -1,7 +1,39 @@
 from django.contrib import admin, messages
 
 from . import servicios
-from .models import ReportePago
+from .models import DatoCobro, MetodoPago, ReportePago, TasaCambio
+
+
+class DatosEnLinea(admin.TabularInline):
+    model = DatoCobro
+    extra = 0
+    fields = ["orden", "etiqueta", "valor"]
+
+
+@admin.register(MetodoPago)
+class MetodoPagoAdmin(admin.ModelAdmin):
+    """Los datos de cobro que ve el cliente. Cambiarlos aquí se refleja en
+    la web al instante, sin publicar nada."""
+
+    list_display = ["nombre", "codigo", "moneda", "activo", "orden"]
+    list_editable = ["activo", "orden"]
+    inlines = [DatosEnLinea]
+
+    def has_delete_permission(self, request, obj=None):
+        return False  # se apaga, no se borra: hay reportes que lo usan
+
+
+@admin.register(TasaCambio)
+class TasaCambioAdmin(admin.ModelAdmin):
+    list_display = ["fecha", "bs_por_usd", "fuente", "registrada_por"]
+    readonly_fields = ["registrada_por", "creada"]
+    date_hierarchy = "fecha"
+
+    def save_model(self, request, obj, form, change):
+        # Queda quién la cargó: una tasa mal puesta cambia lo que se cobra.
+        if not change:
+            obj.registrada_por = request.user
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(ReportePago)
