@@ -26,6 +26,7 @@ portal deja el modo demostración.
 |---|---|
 | `cuentas` | Usuario (se entra con correo), sesión, registro y recuperación de contraseña |
 | `catalogo` | Productos y opciones de pago (anual, trimestral, mensual) con su precio. Se editan en `/admin` |
+| `tienda` | Órdenes: la compra guarda el precio del momento y crea la suscripción `pendiente`; aprobar su pago la deja `pagada` |
 | `suscripciones` | Los planes de cada usuario y su estado (`GET /portal/cuenta`) |
 | `pagos` | Métodos de cobro, tasa BCV y reportes de pago; el equipo aprueba en `/admin` y eso renueva las suscripciones |
 
@@ -51,6 +52,7 @@ o desde un test pasa por la misma función (`pagos.servicios.aprobar`).
 | POST | `/auth/recuperacion/confirmar` | `{ token, contrasena }` → 204 · 400 `token-invalido` |
 | GET | `/portal/cuenta` | `{ suscripciones: [...] }` |
 | POST | `/portal/pagos` | `{ metodo, referencia, fecha, monto, banco, suscripciones }` → 201 · 409 `referencia-usada` · 400 `metodo-no-disponible` |
+| POST | `/tienda/ordenes` | `{ producto, opcion }` (con sesión) → 201 `{ orden }` nueva · 200 la pendiente que ya existía · 400 `opcion-no-disponible`. El precio lo pone el servidor |
 | GET | `/tienda/catalogo` | `{ productos: [{ codigo, nombre, marca, iva, opciones: [{ codigo, nombre, meses, precio, destacado }] }] }` (público) |
 | GET | `/pagos/metodos` | `{ metodos: [{ id, nombre, moneda, datos: [{ etiqueta, valor }] }] }` (público) |
 | GET | `/pagos/tasa` | `{ fecha, bs_por_usd }` · 404 `sin-tasa` (público) |

@@ -2,6 +2,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from suscripciones.servicios import renovar
+from tienda.servicios import marcar_pagadas
 
 from .models import ReportePago, TasaCambio
 
@@ -29,8 +30,11 @@ def aprobar(reporte_id, revisor, tasa_bcv=None):
     if reporte.estado != ReportePago.Estado.PENDIENTE:
         raise PagoYaRevisado(reporte)
 
-    for suscripcion in reporte.suscripciones.select_for_update():
+    suscripciones = list(reporte.suscripciones.select_for_update())
+    for suscripcion in suscripciones:
         renovar(suscripcion)
+    # Si era una compra de la tienda, su orden queda pagada.
+    marcar_pagadas(suscripciones)
 
     reporte.estado = ReportePago.Estado.APROBADO
     reporte.revisado_por = revisor

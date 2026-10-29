@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "cuentas",
     "catalogo",
+    "tienda",
     "suscripciones",
     "pagos",
 ]
@@ -149,6 +150,7 @@ REST_FRAMEWORK = {
         "registro": "10/hour",
         "recuperacion": "5/hour",
         "pagos": "20/hour",
+        "ordenes": "30/hour",
     },
 }
 
