@@ -10,7 +10,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from cuentas.errores import ErrorNegocio
-from suscripciones.models import Suscripcion
+from suscripciones import servicios as reglas_suscripciones
 
 from .models import DatoCobro, MetodoPago, ReportePago
 from .servicios import tasa_vigente
@@ -50,11 +50,10 @@ class Pagos(APIView):
         if metodo is None:
             raise ErrorNegocio(400, "metodo-no-disponible")
 
-        # Solo suscripciones PROPIAS. Si alguna no lo es, se rechaza todo
-        # sin decir cuál: no se confirma que exista una suscripción ajena.
-        ids = set(d["suscripciones"])
-        suscripciones = list(request.user.suscripciones.filter(pk__in=ids).exclude(estado=Suscripcion.Estado.CANCELADA))
-        if len(suscripciones) != len(ids):
+        # Solo suscripciones PROPIAS y pagables. La regla vive en la app de
+        # suscripciones; si alguna falla, se rechaza todo sin decir cuál.
+        suscripciones = reglas_suscripciones.pagables(request.user, d["suscripciones"])
+        if suscripciones is None:
             raise ErrorNegocio(400, "suscripcion-invalida")
 
         # Pago en bolívares: se copia la tasa del día del PAGO (no la de hoy),
